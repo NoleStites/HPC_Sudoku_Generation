@@ -4,6 +4,7 @@ from math import isqrt, floor
 from random import choice
 import time
 import sys
+import datetime
 
 
 def askForBoardSize():
@@ -345,6 +346,45 @@ def printGeneratedSudoku(tile_grid, tiles_for_width, subsquare_count):
             print(horizontal_divider)
 
 
+def log_data(date_time, test_count, time_result_list, board_width):
+    '''
+    Logs the average time, longest time, and shortest time given
+    the results of all tests.
+
+    Data is logged to "results.txt"
+    '''
+    # Calculate the average, longest, and shortest times
+    longest = round(max(time_result_list), 5)
+    shortest = round(min(time_result_list), 5)
+    
+    total_sum = 0
+    for result in time_result_list:
+        total_sum += result
+    average = round(total_sum / test_count, 5)
+
+    # Determine size of divider
+    divider = ""
+    for i in range(len(str(date_time))-6):
+        divider += "-"
+
+    # Extract date and time from datetime
+    date = date_time.strftime("%x")
+    time = date_time.strftime("%I:%M:%S %p")
+
+    # Open and append to log file
+    open_file = open("results.txt", "a")
+
+    open_file.write(f'{date} {time}\n')
+    open_file.write(divider + "\n")
+    open_file.write(f'Board Size: {board_width}x{board_width}\n')
+    open_file.write(f'Test Count: {test_count}\n')
+    open_file.write(f'Average:    {average} s\n')
+    open_file.write(f'Longest:    {longest} s\n')
+    open_file.write(f'Shortest:   {shortest} s\n\n\n')
+
+    open_file.close()
+
+
 def main():
     # Extract test count from command line
     if len(sys.argv) == 2:
@@ -365,6 +405,12 @@ def main():
     # Verify that chosen board size is valid
     if tiles_for_width not in [4, 9, 16, 25, 36, 49]:
         raise Exception("Invalid Board Size!") 
+    
+    # Get the current date and time for logging
+    date_and_time = datetime.datetime.now()
+
+    # Initialize a result list
+    result_times = []
 
     # Time the generation attempt
     for n in range(number_of_tests):
@@ -376,9 +422,13 @@ def main():
         end = time.time()
         
         execution_time = end - start # Time in seconds
-        print(execution_time)
+        result_times.append(execution_time)
 
-        printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
+        """Uncomment below to print completed Sudoku boards"""
+        #printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
+
+    # Log the testing results in "results.txt"
+    log_data(date_and_time, number_of_tests, result_times, tiles_for_width)
 
 
 
