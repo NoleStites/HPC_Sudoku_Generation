@@ -2,6 +2,8 @@ from Tile import Tile
 from Snapshot import Snapshot
 from math import isqrt, floor
 from random import choice
+import time
+import sys
 
 
 def askForBoardSize():
@@ -64,7 +66,7 @@ def generateSudoku(tile_grid, tiles_for_width):
     '''
     Will continually collapse tiles, backtracking when necessary,
     until the entire Sudoku board has been populated with numbers.
-    '''
+    ''' 
     start = True # To make the first collapsed Tile be in the center
     backtracking = False # To keep track if we choose the Tile to collapse or not
     history = []
@@ -344,6 +346,19 @@ def printGeneratedSudoku(tile_grid, tiles_for_width, subsquare_count):
 
 
 def main():
+    # Extract test count from command line
+    if len(sys.argv) == 2:
+        try:
+            test_count = int(sys.argv[1])
+        except:
+            raise Exception("Second argument must be a positive non-zero integer!")
+    
+        if test_count <= 0:
+            raise Exception("Second argument must be a positive non-zero integer!")
+        number_of_tests = test_count
+    else:
+        number_of_tests = 1
+
     # Get the board size information
     tiles_for_width, subsquares_along_width = askForBoardSize()
 
@@ -351,12 +366,19 @@ def main():
     if tiles_for_width not in [4, 9, 16, 25, 36, 49]:
         raise Exception("Invalid Board Size!") 
 
-    # Initialize empty grid of tiles
-    tile_grid = populateGrid(tiles_for_width)
+    # Time the generation attempt
+    for n in range(number_of_tests):
+        # Initialize empty grid of tiles
+        tile_grid = populateGrid(tiles_for_width)
+        
+        start = time.time()
+        generateSudoku(tile_grid, tiles_for_width)
+        end = time.time()
+        
+        execution_time = end - start # Time in seconds
+        print(execution_time)
 
-    # For backtracking, keep a record of past tile collapses
-    generateSudoku(tile_grid, tiles_for_width)
-    printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
+        printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
 
 
 
