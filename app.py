@@ -430,6 +430,14 @@ def main():
     # Log the testing results in "results.txt"
     log_data(date_and_time, number_of_tests, result_times, tiles_for_width)
 
+    # Print success
+    if number_of_tests == 1:
+        print(f'Successfully ran {number_of_tests} test!')
+    else:
+        print(f'Successfully ran {number_of_tests} tests!')
+
+    print("Results can be found in \"results.txt\"\n")
+
 
 
 
