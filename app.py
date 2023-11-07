@@ -62,8 +62,9 @@ def generateSudoku(tile_grid, tiles_for_width):
 
     # Create a numpy array with blank Snapshots
     total_tiles = tiles_for_width*tiles_for_width
-    history = np.tile(Snapshot(Tile((0, 0), tiles_for_width, 0, 0), 0), total_tiles)
-    recent_history_entry = -1 # Follow the entries as they are added with this variable
+    default_snapshot = Snapshot(tile_grid[0][0], 1)
+    history = np.tile(default_snapshot, total_tiles)
+    index = 0 # "Points" to the first available entry in the history list to add a Snapshot
     
     last_snapshot = history[0] # Just a placeholder, ignore me
 
@@ -100,9 +101,8 @@ def generateSudoku(tile_grid, tiles_for_width):
 
         if chosen_value == None: # After exclusions, no entropy can be chosen; time to backtrack.
             # Extract the last snapshot and the coord and value
-            last_snapshot = history[recent_history_entry]
-            history[recent_history_entry] = Snapshot(Tile((0, 0), tiles_for_width, 0, 0), 0)
-            recent_history_entry -= 1
+            last_snapshot = history[index-1]
+            index -= 1
             backtrack_tile = last_snapshot.collapsed_tile
             entropy_val_to_reverse = backtrack_tile.value
 
@@ -129,14 +129,11 @@ def generateSudoku(tile_grid, tiles_for_width):
         # Add the new change to history
         if backtracking:
             last_snapshot.collapsed_values.append(chosen_value)
-            
-            history[recent_history_entry+1].collapsed_tile = last_snapshot.collapsed_tile
-            history[recent_history_entry+1].collapsed_values = last_snapshot.collapsed_values
-            recent_history_entry += 1 # Update where the last entry was added
+            history[index] = last_snapshot
+            index += 1 # Update where the next available entry location is
         else:
-            history[recent_history_entry+1].collapsed_tile = chosen_tile
-            history[recent_history_entry+1].collapsed_values = [chosen_value]
-            recent_history_entry += 1 # Update where the last entry was added
+            history[index] = Snapshot(chosen_tile, chosen_value)
+            index += 1
 
         backtracking = False
        
@@ -144,9 +141,8 @@ def generateSudoku(tile_grid, tiles_for_width):
         # Backtrack if a tile will have zero entropy after propagation
         if searchZeroEntropyPropagation(chosen_tile, chosen_value, tile_grid) == 1:
             # Acquire the latest snapshot for backtracking
-            last_snapshot = history[recent_history_entry]
-            history[recent_history_entry] = Snapshot(Tile((0, 0), tiles_for_width, 0, 0), 0) # reset now unused Snapshot
-            recent_history_entry -= 1
+            last_snapshot = history[index-1]
+            index -= 1
 
             # Reset the Tile that needs to be changed
             tile_grid[x][y].collapsed = False
