@@ -427,13 +427,11 @@ def main():
         generateSudoku(tile_grid, tiles_for_width)
         end = time.time()
         
-        print(f'Test {n+1} Complete!')
-
         execution_time = end - start # Time in seconds
         result_times.append(execution_time)
 
         """Uncomment below to print completed Sudoku boards"""
-        printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
+        #printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
 
     # Log the testing results in "results.txt"
     log_data(date_and_time, number_of_tests, result_times, tiles_for_width)
