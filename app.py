@@ -5,29 +5,15 @@ from random import choice
 import time
 import sys
 import datetime
+from numba import cuda, vectorize
+#import numba as numb
+import numpy as np
 
 
-def askForBoardSize():
-    '''
-    This function will prompt the user to choose a 
-    board size and return
-
-    'tiles_for_width': number of tiles/mini squares making up the width
-    'subsquares_along_width': number of larger groups of squares making up the width
-    '''
-    print("\nChoose your Sudoku size:")
-    print("- 4x4   (enter \'4\')")
-    print("- 9x9   (enter \'9\')   (STANDARD)")
-    print("- 16x16 (enter \'16\')")
-    print("- 25x25 (enter \'25\')")
-    print("- 36x36 (enter \'36\')")
-    print("- 49x49 (enter \'49\')")
-
-    tiles_for_width = int(input("\nChoice: "))
-    subsquares_along_width = isqrt(tiles_for_width)
-    print()
-
-    return tiles_for_width, subsquares_along_width
+if cuda.is_available():
+    driver = "cuda"
+else:
+    driver = "cpu"
 
 
 def populateGrid(tiles_for_width):
@@ -60,9 +46,12 @@ def populateGrid(tiles_for_width):
 
         tile_grid.append(temp)
 
-    return tile_grid
+    np_tile_grid = np.array(tile_grid) # convert list to a 2-dimensional numpy array
+    
+    return np_tile_grid
 
 
+#@vectorize([numb.void(numb.int32, numb.int32)], target=driver)
 def generateSudoku(tile_grid, tiles_for_width):
     '''
     Will continually collapse tiles, backtracking when necessary,
@@ -70,7 +59,13 @@ def generateSudoku(tile_grid, tiles_for_width):
     ''' 
     start = True # To make the first collapsed Tile be in the center
     backtracking = False # To keep track if we choose the Tile to collapse or not
-    history = []
+
+    # Create a numpy array with blank Snapshots
+    total_tiles = tiles_for_width*tiles_for_width
+    history = np.tile(Snapshot(Tile((0, 0), tiles_for_width, 0, 0), 0), total_tiles)
+    recent_history_entry = -1 # Follow the entries as they are added with this variable
+    
+    last_snapshot = history[0] # Just a placeholder, ignore me
 
     while True:
         """
@@ -96,6 +91,7 @@ def generateSudoku(tile_grid, tiles_for_width):
 
         # Choose the value to assign to the Tile based on if we are backtracking or proceeding normally.
         if backtracking:
+            #print(chosen_tile.entropy, last_snapshot.collapsed_values)
             chosen_value = chooseRandomValue(chosen_tile, last_snapshot.collapsed_values)
 
         else:
@@ -104,8 +100,9 @@ def generateSudoku(tile_grid, tiles_for_width):
 
         if chosen_value == None: # After exclusions, no entropy can be chosen; time to backtrack.
             # Extract the last snapshot and the coord and value
-            last_snapshot = history[-1]
-            history.pop(-1)
+            last_snapshot = history[recent_history_entry]
+            history[recent_history_entry] = Snapshot(Tile((0, 0), tiles_for_width, 0, 0), 0)
+            recent_history_entry -= 1
             backtrack_tile = last_snapshot.collapsed_tile
             entropy_val_to_reverse = backtrack_tile.value
 
@@ -118,7 +115,7 @@ def generateSudoku(tile_grid, tiles_for_width):
             backtracking = True
 
             continue
-
+        
 
         # Mark equivalent Tile in grid as collapsed and assign value to it
         if not(start):
@@ -128,20 +125,28 @@ def generateSudoku(tile_grid, tiles_for_width):
         tile_grid[x][y].collapsed = True
         tile_grid[x][y].value = chosen_value
 
+        
         # Add the new change to history
         if backtracking:
             last_snapshot.collapsed_values.append(chosen_value)
-            history.append(last_snapshot)
+            
+            history[recent_history_entry+1].collapsed_tile = last_snapshot.collapsed_tile
+            history[recent_history_entry+1].collapsed_values = last_snapshot.collapsed_values
+            recent_history_entry += 1 # Update where the last entry was added
         else:
-            history.append(Snapshot(chosen_tile, chosen_value))
+            history[recent_history_entry+1].collapsed_tile = chosen_tile
+            history[recent_history_entry+1].collapsed_values = [chosen_value]
+            recent_history_entry += 1 # Update where the last entry was added
 
         backtracking = False
+       
 
         # Backtrack if a tile will have zero entropy after propagation
         if searchZeroEntropyPropagation(chosen_tile, chosen_value, tile_grid) == 1:
             # Acquire the latest snapshot for backtracking
-            last_snapshot = history[-1]
-            history.pop(-1)
+            last_snapshot = history[recent_history_entry]
+            history[recent_history_entry] = Snapshot(Tile((0, 0), tiles_for_width, 0, 0), 0) # reset now unused Snapshot
+            recent_history_entry -= 1
 
             # Reset the Tile that needs to be changed
             tile_grid[x][y].collapsed = False
@@ -150,7 +155,7 @@ def generateSudoku(tile_grid, tiles_for_width):
             # Start the cycle again with new exclusions for the values
             backtracking = True
             continue
-
+       
 
         # Propagate the entropy of affected Tiles
         propagateEntropy(chosen_tile, chosen_value, tile_grid, tiles_for_width)
@@ -386,26 +391,27 @@ def log_data(date_time, test_count, time_result_list, board_width):
 
 
 def main():
+    # Get command line arguments
+    # 1. app.py, 2. board_size, 3. test_count
+    if len(sys.argv) != 3:
+        raise Exception("Must supply two additional arguments:\nboard_size: 4, 9, 16, 25, or 49\ntest_count: number of tests to run\n")
+
+    # Extract board size from command line
+    if int(sys.argv[1]) not in [4, 9, 16, 25, 49]:
+        raise Exception("Invalid board size! Must be either 4, 9, 16, 25, or 49.")
+    tiles_for_width = int(sys.argv[1])
+    subsquares_along_width = isqrt(tiles_for_width)
+
     # Extract test count from command line
-    if len(sys.argv) == 2:
-        try:
-            test_count = int(sys.argv[1])
-        except:
-            raise Exception("Second argument must be a positive non-zero integer!")
-    
-        if test_count <= 0:
-            raise Exception("Second argument must be a positive non-zero integer!")
-        number_of_tests = test_count
-    else:
-        number_of_tests = 1
+    try:
+        test_count = int(sys.argv[2])
+    except:
+        raise Exception("Third argument must be a positive non-zero integer test_count!")
 
-    # Get the board size information
-    tiles_for_width, subsquares_along_width = askForBoardSize()
+    if test_count <= 0:
+        raise Exception("Third argument must be a positive non-zero integer test_count!")
+    number_of_tests = test_count
 
-    # Verify that chosen board size is valid
-    if tiles_for_width not in [4, 9, 16, 25, 36, 49]:
-        raise Exception("Invalid Board Size!") 
-    
     # Get the current date and time for logging
     date_and_time = datetime.datetime.now()
 
@@ -421,11 +427,13 @@ def main():
         generateSudoku(tile_grid, tiles_for_width)
         end = time.time()
         
+        print(f'Test {n+1} Complete!')
+
         execution_time = end - start # Time in seconds
         result_times.append(execution_time)
 
         """Uncomment below to print completed Sudoku boards"""
-        #printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
+        printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
 
     # Log the testing results in "results.txt"
     log_data(date_and_time, number_of_tests, result_times, tiles_for_width)
