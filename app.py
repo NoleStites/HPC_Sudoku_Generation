@@ -5,8 +5,8 @@ from random import choice
 import time
 import sys
 import datetime
-from numba import cuda, vectorize
-#import numba as numb
+from numba import cuda, vectorize, njit, jit
+import numba as numb
 import numpy as np
 
 
@@ -51,7 +51,9 @@ def populateGrid(tiles_for_width):
     return np_tile_grid
 
 
-#@vectorize([numb.void(numb.int32, numb.int32)], target=driver)
+#@vectorize([numb.void(numb.int32, numb.int32)], nopython=True, target=driver)
+#@vectorize(target=driver)
+@jit(forceobj=True, target_backend=driver)
 def generateSudoku(tile_grid, tiles_for_width):
     '''
     Will continually collapse tiles, backtracking when necessary,
@@ -62,8 +64,8 @@ def generateSudoku(tile_grid, tiles_for_width):
 
     # Create a numpy array with blank Snapshots
     total_tiles = tiles_for_width*tiles_for_width
-    default_snapshot = Snapshot(tile_grid[0][0], 1)
-    history = np.tile(default_snapshot, total_tiles)
+    #default_snapshot = Snapshot(tile_grid[0][0], 1)
+    history = np.tile(Snapshot(tile_grid[0][0], 1), total_tiles)
     index = 0 # "Points" to the first available entry in the history list to add a Snapshot
     
     last_snapshot = history[0] # Just a placeholder, ignore me
@@ -433,6 +435,7 @@ def main():
     log_data(date_and_time, number_of_tests, result_times, tiles_for_width)
 
     # Print success
+    print()
     if number_of_tests == 1:
         print(f'Successfully ran {number_of_tests} test!')
     else:
