@@ -2,7 +2,7 @@ from Tile import Tile
 from Snapshot import Snapshot
 from math import isqrt, floor
 from random import choice
-import time
+from time import perf_counter
 import sys
 import datetime
 
@@ -417,9 +417,9 @@ def main():
         # Initialize empty grid of tiles
         tile_grid = populateGrid(tiles_for_width)
         
-        start = time.time()
+        start = perf_counter()
         generateSudoku(tile_grid, tiles_for_width)
-        end = time.time()
+        end = perf_counter()
         
         execution_time = end - start # Time in seconds
         result_times.append(execution_time)
