@@ -5,6 +5,7 @@ from random import choice
 from time import perf_counter
 import sys
 import datetime
+from multiprocessing import Pool
 
 
 def askForBoardSize():
@@ -30,11 +31,12 @@ def askForBoardSize():
     return tiles_for_width, subsquares_along_width
 
 
-def populateGrid(tiles_for_width):
+def populateGrid():
     '''
     Creates all of the Tile objects to put in the grid and initializes
     them with no value and max entropy. Returns the tile grid list.
     '''
+    global tiles_for_width
     tile_grid = {} # Dictionary. Key = column num.; Value = list of Tiles in column
     prev_sub_x = 0
 
@@ -63,11 +65,13 @@ def populateGrid(tiles_for_width):
     return tile_grid
 
 
-def generateSudoku(tile_grid, tiles_for_width):
+def generateSudoku():
     '''
     Will continually collapse tiles, backtracking when necessary,
     until the entire Sudoku board has been populated with numbers.
     ''' 
+    global tiles_for_width, tile_grid
+
     start = True # To make the first collapsed Tile be in the center
     backtracking = False # To keep track if we choose the Tile to collapse or not
     history = []
@@ -86,7 +90,7 @@ def generateSudoku(tile_grid, tiles_for_width):
             chosen_tile = last_snapshot.collapsed_tile
 
         else: # Get tuple containing random Tile object to populate and value to populate with
-            chosen_tile = randomTile(tile_grid)
+            chosen_tile = randomTile()
 
 
         if chosen_tile == None:
@@ -114,7 +118,7 @@ def generateSudoku(tile_grid, tiles_for_width):
             backtrack_tile.value = None
 
             # Go through the Tile grid and restore the entropy from the last snapshot
-            reverseEntropy(backtrack_tile, entropy_val_to_reverse, tile_grid)
+            reverseEntropy(backtrack_tile, entropy_val_to_reverse)
             backtracking = True
 
             continue
@@ -138,7 +142,7 @@ def generateSudoku(tile_grid, tiles_for_width):
         backtracking = False
 
         # Backtrack if a tile will have zero entropy after propagation
-        if searchZeroEntropyPropagation(chosen_tile, chosen_value, tile_grid) == 1:
+        if searchZeroEntropyPropagation(chosen_tile, chosen_value) == 1:
             # Acquire the latest snapshot for backtracking
             last_snapshot = history[-1]
             history.pop(-1)
@@ -153,14 +157,27 @@ def generateSudoku(tile_grid, tiles_for_width):
 
 
         # Propagate the entropy of affected Tiles
-        propagateEntropy(chosen_tile, chosen_value, tile_grid, tiles_for_width)
+        propagateEntropy(chosen_tile, chosen_value)
 
 
-def propagateEntropy(tile, value, tile_grid, tiles_for_width):
+def assignProcessors():
+    '''
+    Assigns processors in the pool to each column of the tile_grid for
+    per-column per-tile processsing.
+    '''
+    global tiles_for_width
+
+    pool = Pool(tiles_for_width)
+    
+
+
+def propagateEntropy(tile, value):
     '''
     Will change the entropy of Tiles surrounding the given Tile based on
     the given value.
     '''
+    global tiles_for_width, tile_grid
+
     # Iterate through every Tile in the grid
     for column in range(tiles_for_width):
         for row in range(tiles_for_width):
@@ -170,11 +187,13 @@ def propagateEntropy(tile, value, tile_grid, tiles_for_width):
                     curr_tile.entropy.remove(value)
 
 
-def searchZeroEntropyPropagation(tile, propagation_value, tile_grid):
+def searchZeroEntropyPropagation(tile, propagation_value):
     '''
     Given a Tile soon to be collapsed and a value to ignore, searches the board to see
     if any Tile has zero entropy. If so, return 1, else return 0.
     '''
+    global tile_grid
+
     size = len(tile_grid)
 
     for column in range(size):
@@ -193,12 +212,14 @@ def searchZeroEntropyPropagation(tile, propagation_value, tile_grid):
     return 0
 
 
-def reverseEntropy(tile, entropy_value, tile_grid):
+def reverseEntropy(tile, entropy_value):
     '''
     Given a reference Tile and a value, this method will add to all
     necessary Tile's entropy lists the value of entropy_value.
     For going back in time for backtracking.
     '''
+    global tile_grid
+
     size = len(tile_grid)
 
     # Acquire a list of rows, columns, and subsquares that shouldn't be reversed
@@ -224,7 +245,7 @@ def reverseEntropy(tile, entropy_value, tile_grid):
                         curr_tile.entropy.append(entropy_value)
 
 
-def randomTile(tile_grid):
+def randomTile():
     """
     Given the two-dimensional list of Tiles, determines
     which tiles are uncollapsed and have the lowest entropy.
@@ -232,9 +253,10 @@ def randomTile(tile_grid):
     Returns a random Tile.
     If there are no uncollasped Tiles, return None.
     """
+    global tile_grid
 
     # Get a list of uncollapsed Tiles with the lowest entropy to choose from
-    valid_tiles = getValidTiles(tile_grid)
+    valid_tiles = getValidTiles()
     if valid_tiles == None:
         return None
 
@@ -244,13 +266,15 @@ def randomTile(tile_grid):
     return tile
 
 
-def getValidTiles(tile_grid):
+def getValidTiles():
     """
     Iterates through each Tile in the grid and determines if it
     has collapsed or not, then returns a list of uncollapsed Tiles
     with the lowest entropy; if all are collapsed, returns None.
     """
-    grid_size = len(tile_grid)
+    global tiles_for_width, tile_grid
+
+    grid_size = tiles_for_width
     
     valid_tiles = []
     lowest_entropy = grid_size
@@ -313,10 +337,12 @@ def chooseRandomTile(valid_tiles):
     return random_tile
 
 
-def printGeneratedSudoku(tile_grid, tiles_for_width, subsquare_count):
+def printGeneratedSudoku(subsquare_count):
     '''
     Prints the completed sudoku board to the terminal.
     '''
+    global tiles_for_width, tile_grid
+
     digit_count = len(str(tiles_for_width))
 
     # Dynamically size the printed divider based on board size
@@ -346,13 +372,15 @@ def printGeneratedSudoku(tile_grid, tiles_for_width, subsquare_count):
             print(horizontal_divider)
 
 
-def log_data(date_time, test_count, time_result_list, board_width):
+def log_data(date_time, test_count, time_result_list):
     '''
     Logs the average time, longest time, and shortest time given
     the results of all tests.
 
     Data is logged to "results.txt"
     '''
+    global tiles_for_width
+
     # Calculate the average, longest, and shortest times
     longest = round(max(time_result_list), 5)
     shortest = round(min(time_result_list), 5)
@@ -376,7 +404,7 @@ def log_data(date_time, test_count, time_result_list, board_width):
 
     open_file.write(f'{date} {time}\n')
     open_file.write(divider + "\n")
-    open_file.write(f'Board Size: {board_width}x{board_width}\n')
+    open_file.write(f'Board Size: {tiles_for_width}x{tiles_for_width}\n')
     open_file.write(f'Test Count: {test_count}\n')
     open_file.write(f'Average:    {average} s\n')
     open_file.write(f'Longest:    {longest} s\n')
@@ -400,6 +428,7 @@ def main():
         number_of_tests = 1
 
     # Get the board size information
+    global tiles_for_width
     tiles_for_width, subsquares_along_width = askForBoardSize()
 
     # Verify that chosen board size is valid
@@ -415,20 +444,21 @@ def main():
     # Time the generation attempt
     for n in range(number_of_tests):
         # Initialize empty grid of tiles
-        tile_grid = populateGrid(tiles_for_width)
+        global tile_grid
+        tile_grid = populateGrid()
         
         start = perf_counter()
-        generateSudoku(tile_grid, tiles_for_width)
+        generateSudoku()
         end = perf_counter()
         
         execution_time = end - start # Time in seconds
         result_times.append(execution_time)
 
         """Uncomment below to print completed Sudoku boards"""
-        printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
+        printGeneratedSudoku(subsquares_along_width)
 
     # Log the testing results in "results.txt"
-    log_data(date_and_time, number_of_tests, result_times, tiles_for_width)
+    log_data(date_and_time, number_of_tests, result_times)
 
     # Print success
     if number_of_tests == 1:
