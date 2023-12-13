@@ -35,7 +35,7 @@ def populateGrid(tiles_for_width):
     Creates all of the Tile objects to put in the grid and initializes
     them with no value and max entropy. Returns the tile grid list.
     '''
-    tile_grid = []
+    tile_grid = {} # Dictionary. Key = column num.; Value = list of Tiles in column
     prev_sub_x = 0
 
     for column in range(tiles_for_width):
@@ -58,7 +58,7 @@ def populateGrid(tiles_for_width):
             temp.append(new_tile)
 
 
-        tile_grid.append(temp)
+        tile_grid[column] = temp
 
     return tile_grid
 
@@ -425,7 +425,7 @@ def main():
         result_times.append(execution_time)
 
         """Uncomment below to print completed Sudoku boards"""
-        #printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
+        printGeneratedSudoku(tile_grid, tiles_for_width, subsquares_along_width)
 
     # Log the testing results in "results.txt"
     log_data(date_and_time, number_of_tests, result_times, tiles_for_width)
